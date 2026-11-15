@@ -2,8 +2,6 @@ package uz.mros.keyboard
 
 import android.content.Context
 import android.graphics.Canvas
-import android.graphics.ColorMatrix
-import android.graphics.ColorMatrixColorFilter
 import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Typeface
@@ -54,12 +52,16 @@ class EmojiPanelView(context: Context, private val host: Host) : View(context) {
     private val labelH get() = dp(20f)
 
     private val emojiPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
-    private val iconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        textAlign = Paint.Align.CENTER
-        colorFilter = ColorMatrixColorFilter(ColorMatrix().apply { setSaturation(0f) })
-        alpha = 150
+    private val barIconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeWidth = dp(1.6f) }
+    private var barIconSize = dp(20f)
+    private var emojiSize = dp(30f)
+    private val use3d get() = host.prefs.emojiStyle == 0
+    private val onImages: () -> Unit = { invalidate() }
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        EmojiImages.addListener(onImages)
     }
-    private val iconSelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
     private val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         textSize = dp(11.5f)
         typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
@@ -121,6 +123,7 @@ class EmojiPanelView(context: Context, private val host: Host) : View(context) {
         cellH = gridH / rows
         cellW = min(cellH * 1.12f, w / 7.6f).coerceAtLeast(cellH * 0.9f)
         emojiPaint.textSize = min(cellH, cellW) * 0.74f
+        emojiSize = min(cellH, cellW) * 0.84f
 
         var x = dp(6f)
         for (s in sections) {
@@ -143,8 +146,7 @@ class EmojiPanelView(context: Context, private val host: Host) : View(context) {
             val l = side + dp(2f) + i * bw
             barButtons.add(BarButton(i, RectF(l, barRect.top, l + bw, barRect.bottom)))
         }
-        iconPaint.textSize = min(bw * 0.62f, dp(20f))
-        iconSelPaint.textSize = iconPaint.textSize
+        barIconSize = min(bw * 0.6f, dp(21f))
     }
 
     /** Joriy ko'rinayotgan bo'lim (pastki qatordagi tanlangan ikonka uchun) */
@@ -215,7 +217,7 @@ class EmojiPanelView(context: Context, private val host: Host) : View(context) {
                         tmp.set(cx - cellW / 2f + dp(1f), cy - cellH / 2f + dp(1f), cx + cellW / 2f - dp(1f), cy + cellH / 2f - dp(1f))
                         g.drawGlass(c, tmp, dp(10f), GlassTheme.Fill.PILL, 0f, withShadow = false)
                     }
-                    c.drawText(s.texts[idx], cx, cy - (emojiPaint.descent() + emojiPaint.ascent()) / 2f, emojiPaint)
+                    EmojiImages.draw(c, s.texts[idx], cx, cy, emojiSize, emojiPaint, use3d)
                 }
             }
         }
@@ -237,14 +239,24 @@ class EmojiPanelView(context: Context, private val host: Host) : View(context) {
                     Icons.backspace(c, cx, cy, dp(22f), strokePaint)
                 }
                 else -> {
-                    val icon = if (b.id == 0) EmojiData.RECENT_ICON else EmojiData.CATEGORY_ICONS[b.id - 1]
-                    val paint = if (b.id == sel) iconSelPaint else iconPaint
                     if (b.id == sel) {
                         val r = min(b.rect.width(), b.rect.height()) * 0.42f
                         tmp.set(cx - r, cy - r, cx + r, cy + r)
-                        g.drawGlass(c, tmp, r, GlassTheme.Fill.PILL, 0f, withShadow = false)
+                        g.drawGlass(c, tmp, r, GlassTheme.Fill.CHAR, 0f, withShadow = false)
                     }
-                    c.drawText(icon, cx, cy - (paint.descent() + paint.ascent()) / 2f, paint)
+                    barIconPaint.color = if (b.id == sel) g.text else g.textSecondary
+                    val sz = barIconSize
+                    when (b.id) {
+                        0 -> Icons.clock(c, cx, cy, sz, barIconPaint)
+                        1 -> Icons.smiley(c, cx, cy, sz, barIconPaint)
+                        2 -> Icons.bear(c, cx, cy, sz, barIconPaint)
+                        3 -> Icons.food(c, cx, cy, sz, barIconPaint)
+                        4 -> Icons.ball(c, cx, cy, sz, barIconPaint)
+                        5 -> Icons.car(c, cx, cy, sz, barIconPaint)
+                        6 -> Icons.bulb(c, cx, cy, sz, barIconPaint)
+                        7 -> Icons.symbols(c, cx, cy, sz, barIconPaint)
+                        else -> Icons.flag(c, cx, cy, sz, barIconPaint)
+                    }
                 }
             }
         }
@@ -280,7 +292,7 @@ class EmojiPanelView(context: Context, private val host: Host) : View(context) {
             val l = toneRect.left + i * toneCellW
             tmp.set(l + dp(3f), toneRect.top + dp(4f), l + toneCellW - dp(3f), toneRect.bottom - dp(4f))
             if (i == toneSel) g.fillRound(c, tmp, dp(10f), GlassTheme.scaleAlpha(g.accent, 0.35f))
-            c.drawText(item.variant(i), tmp.centerX(), tmp.centerY() - (emojiPaint.descent() + emojiPaint.ascent()) / 2f, emojiPaint)
+            EmojiImages.draw(c, item.variant(i), tmp.centerX(), tmp.centerY(), emojiSize, emojiPaint, use3d)
         }
     }
 
@@ -436,6 +448,7 @@ class EmojiPanelView(context: Context, private val host: Host) : View(context) {
     }
 
     override fun onDetachedFromWindow() {
+        EmojiImages.removeListener(onImages)
         removeCallbacks(longPress)
         removeCallbacks(deleteRepeat)
         super.onDetachedFromWindow()

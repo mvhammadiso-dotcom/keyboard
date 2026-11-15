@@ -16,6 +16,8 @@ class ToolbarView(context: Context, private val host: Host) : View(context) {
     interface Host {
         val glass: GlassTheme
         val themeMode: Int
+        /** Hozirgi til qisqa nomi (UZ, RU, EN), bitta til bo'lsa — bo'sh */
+        val langShort: String
         fun onToolbarAction(action: Int)
         fun onSuggestionPicked(text: String, isTyped: Boolean)
     }
@@ -27,6 +29,7 @@ class ToolbarView(context: Context, private val host: Host) : View(context) {
         const val ACTION_HIDE = 4
         const val ACTION_BACK = 5
         const val ACTION_CLEAR_CLIPS = 6
+        const val ACTION_LANG = 7
     }
 
     enum class Mode { NORMAL, CLIPBOARD }
@@ -91,11 +94,16 @@ class ToolbarView(context: Context, private val host: Host) : View(context) {
             }
             else -> {
                 var x = dp(6f)
-                for (a in intArrayOf(ACTION_SETTINGS, ACTION_CLIPBOARD, ACTION_THEME)) {
+                for (a in intArrayOf(ACTION_SETTINGS, ACTION_CLIPBOARD)) {
                     items.add(Item(a, RectF(x, 0f, x + btn, h)))
                     x += btn + dp(2f)
                 }
+                if (host.langShort.isNotEmpty()) {
+                    val chipW = dp(58f)
+                    items.add(Item(ACTION_LANG, RectF(x, 0f, x + chipW, h)))
+                }
                 items.add(Item(ACTION_HIDE, RectF(w - dp(6f) - btn, 0f, w - dp(6f), h)))
+                items.add(Item(ACTION_THEME, RectF(w - dp(8f) - btn * 2, 0f, w - dp(8f) - btn, h)))
             }
         }
     }
@@ -121,6 +129,16 @@ class ToolbarView(context: Context, private val host: Host) : View(context) {
                 ACTION_THEME -> Icons.theme(c, cx, cy, s, iconPaint, host.themeMode)
                 ACTION_HIDE -> Icons.chevronDown(c, cx, cy, s, iconPaint)
                 ACTION_CLEAR_CLIPS -> Icons.trash(c, cx, cy, s, iconPaint)
+                ACTION_LANG -> {
+                    tmp.set(it.rect.left + dp(4f), cy - dp(14f), it.rect.right - dp(4f), cy + dp(14f))
+                    g.drawGlass(c, tmp, dp(14f), GlassTheme.Fill.CHAR, 0f, withShadow = false)
+                    Icons.globe(c, tmp.left + dp(13f), cy, dp(15f), iconPaint)
+                    boldPaint.textSize = dp(13.5f)
+                    boldPaint.textAlign = Paint.Align.LEFT
+                    c.drawText(host.langShort, tmp.left + dp(24f), cy - (boldPaint.descent() + boldPaint.ascent()) / 2f, boldPaint)
+                    boldPaint.textAlign = Paint.Align.CENTER
+                    boldPaint.textSize = dp(16.5f)
+                }
                 ACTION_BACK -> {
                     Icons.chevronLeft(c, it.rect.left + dp(16f), cy, s, iconPaint)
                     boldPaint.textAlign = Paint.Align.LEFT

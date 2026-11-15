@@ -32,6 +32,7 @@ class MrosKeyboardService : InputMethodService() {
         suggest.onDictLoaded = { root?.refreshSuggestions() }
         suggest.prepare(prefs.currentLang)
         EmojiData.load(this)
+        EmojiImages.init(this)
         clipboard = getSystemService(ClipboardManager::class.java)
         try {
             clipboard?.addPrimaryClipChangedListener(clipListener)

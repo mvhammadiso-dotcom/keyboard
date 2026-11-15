@@ -3,8 +3,9 @@
 Android uchun Gboard'ga o'xshash klaviatura — **Liquid Glass** (shisha) dizaynida, iOS uslubidagi emoji paneli bilan.
 
 ## Imkoniyatlar
-- Tillar: **Oʻzbekcha (lotin)**, **Русский / Ўзбекча (kirill)**, **English** — 🌐 tugmasi bilan almashtiriladi
-- Shisha tugmalar, bosilganda "suyuq" kattalashish, iOS kabi harf baloni
+- Tillar: **Oʻzbekcha (lotin)**, **Русский / Ўзбекча (kirill)**, **English** — bo'shliqni bosib turish yoki yuqoridagi 🌐 UZ belgisi
+- Shisha tugmalar: jele kabi tebranish, suv tomchisi to'lqini, orqadagi rangli yorug'lik, "pop" bo'ladigan harf baloni
+- Android 15 da tizimning pastki tugmalari (⌄, klaviatura almashtirish) klaviatura ustiga tushmaydi; "Pastdan masofa" sozlamasi bor
 - Uzoq bosish: raqamlar va qo'shimcha harflar (o → oʻ, g → gʻ, е → ё, у → ў, к → қ, г → ғ, х → ҳ ...)
 - Shift / CAPS (ikki marta bosish), avtomatik bosh harf, ikki bo'shliq = nuqta
 - Bo'shliq tugmasini surib kursorni siljitish, bosib turish — klaviaturalar ro'yxati
@@ -30,6 +31,11 @@ ZIP ichidagi `mros-keyboard` papkasi mazmunini repoga yuklang (`.github` papkasi
 ## O'rnatgandan keyin
 Ilovani oching → **1. Klaviaturani yoqish** → **2. MROS Klaviaturani tanlash**.
 
+## 3D emoji
+Build paytida [Microsoft Fluent Emoji](https://github.com/microsoft/fluentui-emoji) (MIT litsenziya) 3D rasmlari yuklab olinadi
+va `assets/emoji3d/` ga WebP qilib joylanadi (`tools/fluent_emoji.py`). Yuklab bo'lmasa — tizim emojisi ishlatiladi.
+Sozlamalarda "Emoji uslubi: 3D / Tizim" tanlanadi.
+
 ## Eslatma
-- Emoji rasmlari telefoningizdagi tizim shriftidan olinadi. Siz yuborgan emoji qabul qiluvchining qurilmasida o'sha qurilma uslubida ko'rinadi (iPhone'da — Apple emojilari).
+- Emoji panelda 3D (Fluent) yoki tizim uslubida ko'rinadi. Yuborilgan emoji esa oddiy belgi: matn maydonida va qabul qiluvchida o'sha ilova/qurilma uslubida chiqadi (iPhone'da — Apple emojilari).
 - `app/mros-keystore.jks` — yangilanishlar ustidan o'rnatilishi uchun doimiy imzo kaliti. Repo ochiq bo'lsa, kalitni GitHub Secrets'ga ko'chirish tavsiya etiladi.

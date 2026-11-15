@@ -168,19 +168,18 @@ object Layouts {
     }
 
     private fun bottomRow(switchType: KeyType, switchLabel: String, lang: Lang, o: LayoutOptions): Row {
+        // iOS/Gboard kabi: [?123] [😊] [,] [ bo'shliq ] [.] [⏎]  — til almashtirish: bo'shliqni bosib turish
         val keys = ArrayList<Key>()
-        keys.add(Key(switchType, switchLabel, width = 1.3f))
-        keys.add(Key(KeyType.EMOJI, width = 0.95f))
-        if (o.showGlobe) keys.add(Key(KeyType.GLOBE, width = 0.95f))
+        keys.add(Key(switchType, switchLabel, width = 1.45f))
+        keys.add(Key(KeyType.EMOJI, width = 1.1f))
         when (o.variant) {
-            FieldVariant.EMAIL -> keys.add(Key(KeyType.CHAR, "@", "@", 0.95f, listOf(".com", ".uz", ".ru", "_", "-")))
-            FieldVariant.URL -> keys.add(Key(KeyType.CHAR, "/", "/", 0.95f, listOf(".com", ".uz", ":", "_", "-")))
-            else -> keys.add(Key(KeyType.CHAR, ",", ",", 0.95f, listOf(";", ":", "'", "\"", "(", ")")))
+            FieldVariant.EMAIL -> keys.add(Key(KeyType.CHAR, "@", "@", 1f, listOf(".com", ".uz", ".ru", "_", "-")))
+            FieldVariant.URL -> keys.add(Key(KeyType.CHAR, "/", "/", 1f, listOf(".com", ".uz", ":", "_", "-")))
+            else -> keys.add(Key(KeyType.CHAR, ",", ",", 1f, listOf(";", ":", "'", "\"", "(", ")")))
         }
-        val fixed = keys.fold(0f) { a, k -> a + k.width } + 0.95f + 1.55f
-        keys.add(Key(KeyType.SPACE, " ", " ", (10f - fixed).coerceAtLeast(3f)))
-        keys.add(Key(KeyType.CHAR, ".", ".", 0.95f, listOf("?", "!", ",", "'", "\"", ":", ";", "-", "…")))
-        keys.add(Key(KeyType.ENTER, width = 1.55f))
+        keys.add(Key(KeyType.SPACE, " ", " ", 3.85f))
+        keys.add(Key(KeyType.CHAR, ".", ".", 1f, listOf("?", "!", ",", "'", "\"", ":", ";", "-", "…")))
+        keys.add(Key(KeyType.ENTER, width = 1.6f))
         return Row(keys, fill = true)
     }
 

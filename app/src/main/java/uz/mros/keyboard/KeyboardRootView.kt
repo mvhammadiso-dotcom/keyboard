@@ -4,10 +4,12 @@ import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Canvas
 import android.icu.text.BreakIterator
+import android.os.Build
 import android.os.SystemClock
 import android.text.InputType
 import android.view.KeyEvent
 import android.view.View
+import android.view.WindowInsets
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
@@ -57,6 +59,16 @@ class KeyboardRootView(private val ime: MrosKeyboardService) : FrameLayout(ime),
 
     private var toolbarH = 0
     private var keysH = 0
+    private var navInset = 0
+
+    // suyuq orqa fon: bosilgan joyda tarqaladigan yorug'lik + sekin suzuvchi dog'lar
+    private class Glow(val x: Float, val y: Float, val start: Long, val color: Int)
+
+    private val glows = ArrayList<Glow>()
+    private var glowColor = 0
+    private var phase = 0.15f
+    private var lastBgFrame = 0L
+    private var lastTouchTime = 0L
 
     init {
         clipChildren = false
@@ -68,6 +80,16 @@ class KeyboardRootView(private val ime: MrosKeyboardService) : FrameLayout(ime),
         content.addView(emojiPanel, LinearLayout.LayoutParams(match, wrap))
         content.addView(clipPanel, LinearLayout.LayoutParams(match, wrap))
         addView(content, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+        // Android 15 (edge-to-edge): tizimning pastki tugmalari (⌄ yopish, klaviatura almashtirish)
+        // klaviatura ustiga tushmasligi uchun navigatsiya paneli balandligicha joy qoldiramiz.
+        setOnApplyWindowInsetsListener { _, insets ->
+            val b = bottomInsetOf(insets)
+            if (b != navInset) {
+                navInset = b
+                applyBottomPadding()
+            }
+            insets
+        }
         applySizes()
         applyTheme()
         rebuildLayout()
@@ -135,6 +157,25 @@ class KeyboardRootView(private val ime: MrosKeyboardService) : FrameLayout(ime),
         updateSuggestions()
     }
 
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        requestApplyInsets()
+    }
+
+    @Suppress("DEPRECATION")
+    private fun bottomInsetOf(insets: WindowInsets): Int {
+        return if (Build.VERSION.SDK_INT >= 30) {
+            insets.getInsets(WindowInsets.Type.navigationBars()).bottom
+        } else {
+            insets.systemWindowInsetBottom
+        }
+    }
+
+    private fun applyBottomPadding() {
+        val extra = dp(prefs.bottomOffset.coerceIn(0, 60).toFloat()).toInt()
+        content.setPadding(0, 0, 0, navInset + extra)
+    }
+
     fun onFinishInput() {
         keyboard.cancelAll()
     }
@@ -183,20 +224,55 @@ class KeyboardRootView(private val ime: MrosKeyboardService) : FrameLayout(ime),
         emojiPanel.preferredHeight = toolbarH + keysH
         clipPanel.preferredHeight = keysH
         keyboard.showPreviews = prefs.keyPopup
+        applyBottomPadding()
         keyboard.requestLayout()
         emojiPanel.requestLayout()
         clipPanel.requestLayout()
     }
 
     override fun dispatchDraw(canvas: Canvas) {
-        glass.drawBackground(canvas, width, height, blurActive)
+        val now = SystemClock.uptimeMillis()
+        val liquid = prefs.liquidEffects
+        var animate = false
+        if (liquid && now - lastTouchTime < 2500L) {
+            val dt = if (lastBgFrame == 0L) 0.016f else ((now - lastBgFrame) / 1000f).coerceIn(0f, 0.05f)
+            phase = (phase + dt / 14f) % 1f
+            lastBgFrame = now
+            animate = true
+        } else {
+            lastBgFrame = 0L
+        }
+        glass.drawBackground(canvas, width, height, blurActive, phase)
+        if (liquid && glows.isNotEmpty()) {
+            val it = glows.iterator()
+            while (it.hasNext()) {
+                val gl = it.next()
+                val t = (now - gl.start) / 750f
+                if (t >= 1f) {
+                    it.remove()
+                    continue
+                }
+                val r = dp(44f) + dp(110f) * (1f - (1f - t) * (1f - t))
+                glass.drawGlow(canvas, gl.x, gl.y, r, gl.color, (1f - t) * (1f - t) * (1f - t * 0.3f))
+            }
+            if (glows.isNotEmpty()) animate = true
+        }
         super.dispatchDraw(canvas)
+        // yorug'lik shisha orqali o'tganday — tugmalar ustida ham yengil rangli nur
+        if (liquid && glows.isNotEmpty()) {
+            for (gl in glows) {
+                val t = ((now - gl.start) / 750f).coerceIn(0f, 1f)
+                val r = dp(30f) + dp(70f) * (1f - (1f - t) * (1f - t))
+                glass.drawGlow(canvas, gl.x, gl.y, r, gl.color, (1f - t) * (1f - t) * 0.42f)
+            }
+        }
         if (keyboard.visibility == View.VISIBLE) {
             canvas.save()
             canvas.translate((content.left + keyboard.left).toFloat(), (content.top + keyboard.top).toFloat())
             keyboard.drawOverlay(canvas)
             canvas.restore()
         }
+        if (animate) postInvalidateOnAnimation()
     }
 
     private fun showPanel(p: Panel) {
@@ -249,6 +325,7 @@ class KeyboardRootView(private val ime: MrosKeyboardService) : FrameLayout(ime),
         keyboard.spaceLabel = if (kind == LayoutKind.LETTERS) lang.label else ""
         keyboard.shiftState = shiftState
         if (panel != Panel.EMOJI_SEARCH) keyboard.enterAction = enterActionFor(editorInfo)
+        toolbar.invalidate()
     }
 
     private fun setKind(k: LayoutKind) {
@@ -275,6 +352,33 @@ class KeyboardRootView(private val ime: MrosKeyboardService) : FrameLayout(ime),
     // ================= KeyboardView.Host =================
 
     override fun onKeyFeedback(key: Key) = ime.feedback.key(key.type)
+
+    override val liquidEffects: Boolean get() = prefs.liquidEffects
+
+    override fun onTouchGlow(x: Float, y: Float) {
+        val now = SystemClock.uptimeMillis()
+        lastTouchTime = now
+        glows.add(Glow(x + content.left + keyboard.left, y + content.top + keyboard.top, now, glowColor))
+        glowColor = (glowColor + 1) % 3
+        if (glows.size > 8) glows.removeAt(0)
+        invalidate()
+    }
+
+    override fun languageItems(): List<String> {
+        val langs = prefs.languages
+        return if (langs.size > 1) langs.map { it.label } else emptyList()
+    }
+
+    override fun currentLanguageIndex(): Int = prefs.languages.indexOf(lang).coerceAtLeast(0)
+
+    override fun onLanguagePicked(index: Int) {
+        val langs = prefs.languages
+        if (index in langs.indices) {
+            setLanguage(langs[index])
+        } else {
+            ime.getSystemService(InputMethodManager::class.java)?.showInputMethodPicker()
+        }
+    }
 
     override fun requestOverlayRedraw() = invalidate()
 
@@ -386,12 +490,12 @@ class KeyboardRootView(private val ime: MrosKeyboardService) : FrameLayout(ime),
     private fun handleShift() {
         if (kind != LayoutKind.LETTERS) return
         val now = SystemClock.uptimeMillis()
-        shiftState = when (shiftState) {
-            0 -> 1
-            1 -> if (now - lastShiftTap < 380L) 2 else 0
+        shiftState = when {
+            shiftState != 2 && now - lastShiftTap < 400L -> 2   // ikki marta tez bosish = CAPS
+            shiftState == 0 -> 1
             else -> 0
         }
-        lastShiftTap = now
+        lastShiftTap = if (shiftState == 2) 0L else now
         keyboard.shiftState = shiftState
     }
 
@@ -509,7 +613,11 @@ class KeyboardRootView(private val ime: MrosKeyboardService) : FrameLayout(ime),
         val langs = prefs.languages
         if (langs.size < 2) return
         val idx = langs.indexOf(lang)
-        lang = langs[(idx + 1) % langs.size]
+        setLanguage(langs[(idx + 1) % langs.size])
+    }
+
+    private fun setLanguage(l: Lang) {
+        lang = l
         prefs.currentLang = lang
         ime.suggest.prepare(lang)
         if (kind != LayoutKind.LETTERS) kind = LayoutKind.LETTERS
@@ -521,6 +629,9 @@ class KeyboardRootView(private val ime: MrosKeyboardService) : FrameLayout(ime),
     // ================= ToolbarView.Host =================
 
     override val themeMode: Int get() = prefs.theme
+
+    override val langShort: String
+        get() = if (prefs.languages.size > 1) lang.code.uppercase() else ""
 
     override fun onToolbarAction(action: Int) {
         ime.feedback.key(KeyType.CHAR)
@@ -540,6 +651,7 @@ class KeyboardRootView(private val ime: MrosKeyboardService) : FrameLayout(ime),
             }
             ToolbarView.ACTION_HIDE -> ime.requestHideSelf(0)
             ToolbarView.ACTION_BACK -> showPanel(Panel.KEYS)
+            ToolbarView.ACTION_LANG -> nextLanguage()
             ToolbarView.ACTION_CLEAR_CLIPS -> {
                 ime.clearClips()
                 clipPanel.refresh()

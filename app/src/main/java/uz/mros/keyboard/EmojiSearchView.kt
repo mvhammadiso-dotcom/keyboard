@@ -136,11 +136,23 @@ class EmojiSearchView(context: Context, private val host: Host) : View(context) 
                     tmp.set(cx - cell / 2f + dp(2f), cy - cell / 2f + dp(2f), cx + cell / 2f - dp(2f), cy + cell / 2f - dp(2f))
                     g.drawGlass(c, tmp, dp(10f), GlassTheme.Fill.PILL, 0f, withShadow = false)
                 }
-                c.drawText(results[i], cx, cy - (emojiPaint.descent() + emojiPaint.ascent()) / 2f, emojiPaint)
+                EmojiImages.draw(c, results[i], cx, cy, dp(34f), emojiPaint, host.prefs.emojiStyle == 0)
             }
         }
         c.restore()
         if (animating) postInvalidateOnAnimation() else postInvalidateDelayed(530L)
+    }
+
+    private val onImages: () -> Unit = { invalidate() }
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        EmojiImages.addListener(onImages)
+    }
+
+    override fun onDetachedFromWindow() {
+        EmojiImages.removeListener(onImages)
+        super.onDetachedFromWindow()
     }
 
     private var pressedIndex = -1

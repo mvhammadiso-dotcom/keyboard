@@ -45,6 +45,21 @@ class Prefs(context: Context) {
         get() = b("blur", false)
         set(v) = setB("blur", v)
 
+    /** Suyuq shisha effektlari: jele animatsiya, suv to'lqini, yorug'lik */
+    var liquidEffects: Boolean
+        get() = b("liquid", true)
+        set(v) = setB("liquid", v)
+
+    /** Navigatsiya paneli ustidan qo'shimcha masofa (dp) */
+    var bottomOffset: Int
+        get() = i("bottom_offset", 6)
+        set(v) = setI("bottom_offset", v)
+
+    /** 0 = 3D emoji (bor bo'lsa), 1 = tizim emojisi */
+    var emojiStyle: Int
+        get() = i("emoji_style", 0)
+        set(v) = setI("emoji_style", v)
+
     var heightPercent: Int
         get() = i("height_pct", 100)
         set(v) = setI("height_pct", v)
