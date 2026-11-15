@@ -22,6 +22,18 @@ jobs:
           git config user.name github-actions
           git config user.email github-actions@users.noreply.github.com
           git add -A; git commit -m "Unpack $Z" || true; git push
+      - name: 3D emoji (Microsoft Fluent Emoji, MIT)
+        continue-on-error: true
+        run: |
+          if [ -d app/src/main/assets/emoji3d ] && [ -n "$(ls -A app/src/main/assets/emoji3d 2>/dev/null)" ]; then exit 0; fi
+          git clone --depth 1 --filter=blob:none --sparse https://github.com/microsoft/fluentui-emoji /tmp/fluent
+          cd /tmp/fluent
+          git sparse-checkout set --no-cone '/LICENSE' '/assets/**/metadata.json' '/assets/**/3D/*.png'
+          cd "$GITHUB_WORKSPACE"
+          python3 -c "import PIL" 2>/dev/null || pip install --quiet --break-system-packages pillow || pip install --quiet pillow
+          python3 tools/fluent_emoji.py /tmp/fluent/assets app/src/main/assets/emoji3d 96
+          cp /tmp/fluent/LICENSE app/src/main/assets/emoji3d/LICENSE.txt || true
+          du -sh app/src/main/assets/emoji3d
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: '17' }
       - uses: gradle/actions/setup-gradle@v4
