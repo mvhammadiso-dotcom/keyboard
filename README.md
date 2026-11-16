@@ -28,6 +28,20 @@ Har bir `push` dan keyin **Actions** avtomatik APK yig'adi va **Releases** bo'li
 ### Kompyuterdan
 ZIP ichidagi `mros-keyboard` papkasi mazmunini repoga yuklang (`.github` papkasi bilan birga) va push qiling.
 
+## Ilova ichidan yangilanish (yopiq repo uchun)
+Ilova yangilanishni **ochiq** repodagi Releases'dan oladi (yopiq repoga ilova kira olmaydi).
+1. GitHub'da yangi **ochiq** repo oching, masalan `mros-keyboard-releases` ("Add a README file" belgilansin).
+2. GitHub → Settings → Developer settings → **Fine-grained token** yarating:
+   faqat shu ochiq repo, ruxsat: **Contents → Read and write**.
+3. Asosiy (yopiq) repoda: Settings → Secrets and variables → Actions:
+   - **Secrets** → `RELEASES_TOKEN` = token
+   - **Variables** → `RELEASES_REPO` = `foydalanuvchi/mros-keyboard-releases`
+4. Keyingi build'dan boshlab APK ochiq repoga joylanadi, ilova esa uni topib, bildirishnoma yuboradi.
+"Nima yangi" matni `release-notes.md` faylidan olinadi — har build oldidan tahrirlang.
+
+## Shaxsiy shrift
+Sozlamalar → Shaxsiy shrift → "TTF fayl yuklash". Tanlangan shrift emoji panelida ishlatiladi.
+
 ## O'rnatgandan keyin
 Ilovani oching → **1. Klaviaturani yoqish** → **2. MROS Klaviaturani tanlash**.
 

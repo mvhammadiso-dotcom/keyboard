@@ -1,6 +1,8 @@
 package uz.mros.keyboard
 
+import android.Manifest
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.Intent
 import android.content.res.ColorStateList
 import android.content.res.Configuration
@@ -9,6 +11,7 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
@@ -59,16 +62,53 @@ class SettingsActivity : Activity() {
     private lateinit var step1Btn: TextView
     private lateinit var step2Btn: TextView
 
+    private var updateSub: TextView? = null
+    private var updateTile: SpinTile? = null
+    private var fontSub: TextView? = null
+    private var emojiSegPaint: ((Int) -> Unit)? = null
+    private var checking = false
+    private var installing = false
+    private var pendingInstall: Updater.Release? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         prefs = Prefs(this)
         dark = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
         buildUi()
+        UpdateJobService.ensureScheduled(this)
+        if (!prefs.sp.getBoolean("notif_asked", false)) {
+            prefs.sp.edit().putBoolean("notif_asked", true).apply()
+            askNotificationPermission()
+        }
+        if (!handleOpen(intent)) maybeShowGuide()
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleOpen(intent)
     }
 
     override fun onResume() {
         super.onResume()
         refreshStatus()
+        val p = pendingInstall
+        if (p != null && packageManager.canRequestPackageInstalls()) startInstall(p)
+    }
+
+    /** Bildirishnomadan ochilganda: yangilanish yoki qo'llanma. */
+    private fun handleOpen(i: Intent?): Boolean {
+        val what = i?.getStringExtra(Notifier.EXTRA_OPEN) ?: return false
+        i.removeExtra(Notifier.EXTRA_OPEN)
+        when (what) {
+            Notifier.OPEN_UPDATE -> checkUpdates(true)
+            Notifier.OPEN_GUIDE -> {
+                prefs.lastSeenVersion = Updater.currentVersion(this)
+                showGuide(true)
+            }
+            else -> return false
+        }
+        return true
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -102,6 +142,24 @@ class SettingsActivity : Activity() {
         })
 
         buildStatusCard(col)
+
+        // YANGILANISHLAR
+        val upd = section(col, "YANGILANISHLAR", null)
+        val spin = SpinTile(this, cGreen) { c, x, y, s, p -> Icons.sync(c, x, y, s, p) }
+        updateTile = spin
+        val updRow = row(upd, spin, "Yangilanishlarni tekshirish", updateStatusText(), chevron())
+        updateSub = subtitleOf(updRow)
+        updRow.setOnClickListener { checkUpdates(true) }
+        separator(upd)
+        switchRow(upd, tile(cRed) { c, x, y, s, p -> Icons.bell(c, x, y, s, p) }, "Yangilanish bildirishnomalari",
+            "Yangi versiya chiqsa xabar beradi", prefs.updateNotify) {
+            prefs.updateNotify = it
+            if (it) askNotificationPermission()
+            UpdateJobService.ensureScheduled(this)
+        }
+        separator(upd)
+        row(upd, tile(cOrange) { c, x, y, s, p -> Icons.info(c, x, y, s, p) }, "Qoʻllanma va yangiliklar",
+            "Ilovani qanday ishlatish", chevron()).setOnClickListener { showGuide(false) }
 
         // TILLAR
         val langs = section(col, "TILLAR", "Til almashtirish: boʻsh joy tugmasini bosib turing yoki yuqoridagi 🌐 belgisini bosing.")
@@ -158,11 +216,39 @@ class SettingsActivity : Activity() {
             c.drawText("123", x, y - (p.descent() + p.ascent()) / 2f, p)
         }, "Raqamlar qatori", null, prefs.numberRow) { prefs.numberRow = it }
         separator(look)
-        segmentRow(look, tile(cYellow) { c, x, y, s, p -> Icons.smiley(c, x, y, s, p) }, "Emoji uslubi",
-            listOf("3D", "Tizim"), prefs.emojiStyle) { prefs.emojiStyle = it }
+        emojiSegPaint = segmentRow(look, tile(cYellow) { c, x, y, s, p -> Icons.smiley(c, x, y, s, p) }, "Emoji uslubi",
+            listOf("3D", "Tizim", "Shaxsiy"), prefs.emojiStyle, canSelect = { i ->
+                if (i == 2 && !CustomFont.exists(this)) {
+                    toast("Avval shrift faylini yuklang")
+                    pickFont()
+                    false
+                } else true
+            }) { prefs.emojiStyle = it }
         separator(look)
         switchRow(look, tile(cBlue) { c, x, y, s, p -> Icons.keyboard(c, x, y, s, p) }, "Orqa fonni xiralashtirish",
             "Tajriba: Android 12+ va telefon qoʻllasa", prefs.blur) { prefs.blur = it }
+
+        // SHAXSIY SHRIFT
+        val fontSec = section(col, "SHAXSIY SHRIFT",
+            "Telefoningizdagi .ttf yoki .otf emoji shriftini tanlang — u klaviaturaning emoji panelida ishlatiladi. " +
+                "Boshqa ilovalarning matn maydonida emoji oʻsha ilovaning shriftida koʻrinadi.")
+        val fontRow = row(fontSec, tile(cIndigo) { c, x, y, s, p -> Icons.font(c, x, y, s, p) }, "TTF fayl yuklash",
+            fontStatusText(), chevron())
+        fontSub = subtitleOf(fontRow)
+        fontRow.setOnClickListener { pickFont() }
+        separator(fontSec)
+        actionRow(fontSec, tile(cRed) { c, x, y, s, p -> Icons.trash(c, x, y, s, p) }, "Shriftni oʻchirish", red) {
+            if (!CustomFont.exists(this)) {
+                toast("Shrift yuklanmagan")
+                return@actionRow
+            }
+            CustomFont.remove(this)
+            prefs.fontStamp = System.currentTimeMillis()
+            if (prefs.emojiStyle == 2) prefs.emojiStyle = 0
+            emojiSegPaint?.invoke(prefs.emojiStyle)
+            fontSub?.text = fontStatusText()
+            toast("Oʻchirildi")
+        }
 
         // O'LCHAM
         val size = section(col, "OʻLCHAM VA JOYLASHUV", "Klaviatura telefonning pastki tugmalariga tegib qolsa, “Pastdan masofa”ni oshiring.")
@@ -240,18 +326,16 @@ class SettingsActivity : Activity() {
             toast("Tozalandi")
         }
 
-        val version = try {
-            packageManager.getPackageInfo(packageName, 0).versionName
-        } catch (_: Exception) {
-            "?"
-        }
-        col.addView(TextView(this).apply {
-            text = "MROS Klaviatura $version\n3D emoji: Microsoft Fluent Emoji (MIT)"
-            textSize = 13f
-            setTextColor(subColor)
-            gravity = Gravity.CENTER
-            setPadding(0, dp(22f), 0, 0)
-        })
+        // INFO
+        val info = section(col, "INFO", "3D emoji: Microsoft Fluent Emoji (MIT litsenziya)")
+        row(info, tile(cBlue) { c, x, y, s, p -> Icons.keyboard(c, x, y, s, p) }, "MROS Keyboard",
+            "Versiya: ${Updater.currentVersionName(this)}", null)
+        separator(info)
+        row(info, tile(cBlue) { c, x, y, s, p -> Icons.plane(c, x - s * 0.04f, y, s, p) }, "Telegram kanal",
+            "t.me/mrosapp", chevron()).setOnClickListener { openLink("https://t.me/mrosapp") }
+        separator(info)
+        row(info, tile(cBlue) { c, x, y, s, p -> Icons.plane(c, x - s * 0.04f, y, s, p) }, "Creator: mvhammadiso",
+            "t.me/mvhammadiso", chevron()).setOnClickListener { openLink("https://t.me/mvhammadiso") }
 
         setContentView(scroll)
         window.statusBarColor = Color.TRANSPARENT
@@ -432,7 +516,10 @@ class SettingsActivity : Activity() {
         r.setOnClickListener { onClick() }
     }
 
-    private fun segmentRow(parent: LinearLayout, icon: View, title: String, options: List<String>, selected: Int, onSelect: (Int) -> Unit) {
+    private fun segmentRow(
+        parent: LinearLayout, icon: View, title: String, options: List<String>, selected: Int,
+        canSelect: (Int) -> Boolean = { true }, onSelect: (Int) -> Unit,
+    ): (Int) -> Unit {
         val wrap = LinearLayout(this)
         wrap.orientation = LinearLayout.VERTICAL
         row(wrap, icon, title, null, null)
@@ -468,6 +555,7 @@ class SettingsActivity : Activity() {
             b.gravity = Gravity.CENTER
             b.setPadding(dp(4f), dp(7f), dp(4f), dp(7f))
             b.setOnClickListener {
+                if (!canSelect(i)) return@setOnClickListener
                 onSelect(i)
                 paint(i)
                 b.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
@@ -482,6 +570,7 @@ class SettingsActivity : Activity() {
             bottomMargin = dp(12f)
         })
         parent.addView(wrap)
+        return { sel -> paint(sel) }
     }
 
     private fun sliderRow(parent: LinearLayout, icon: View, title: String, min: Int, max: Int, value: Int, unit: String, onChange: (Int) -> Unit) {
@@ -520,4 +609,268 @@ class SettingsActivity : Activity() {
     }
 
     private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_SHORT).show()
+
+    private fun chevron(): TextView = TextView(this).apply {
+        text = "›"
+        textSize = 24f
+        setTextColor(if (dark) 0x66EBEBF5 else 0x4D3C3C43)
+    }
+
+    private fun subtitleOf(row: LinearLayout): TextView? =
+        (row.getChildAt(1) as? LinearLayout)?.getChildAt(1) as? TextView
+
+    private fun openLink(url: String) {
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+        } catch (_: Exception) {
+            toast("Havolani ochib boʻlmadi")
+        }
+    }
+
+    private fun askNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= 33 && !Notifier.canPost(this)) {
+            try {
+                requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQ_NOTIF)
+            } catch (_: Exception) {
+            }
+        }
+    }
+
+    // ======================= shaxsiy shrift =======================
+
+    private fun fontStatusText(): String {
+        val f = CustomFont.file(this)
+        if (!f.exists()) return "Fayl tanlanmagan"
+        val mb = f.length() / (1024.0 * 1024.0)
+        return "Yuklangan (%.1f MB)".format(mb) + if (prefs.emojiStyle == 2) " · faol" else ""
+    }
+
+    private fun pickFont() {
+        val i = Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*")
+        try {
+            startActivityForResult(i, REQ_FONT)
+        } catch (_: Exception) {
+            toast("Fayl tanlash oynasini ochib boʻlmadi")
+        }
+    }
+
+    @Deprecated("Activity API")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        @Suppress("DEPRECATION")
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != REQ_FONT || resultCode != RESULT_OK) return
+        val uri = data?.data ?: return
+        fontSub?.text = "Yuklanmoqda…"
+        Thread {
+            val err = CustomFont.import(this, uri)
+            runOnUiThread {
+                if (err != null) {
+                    toast(err)
+                } else {
+                    prefs.fontStamp = System.currentTimeMillis()
+                    prefs.emojiStyle = 2
+                    emojiSegPaint?.invoke(2)
+                    toast("Shrift oʻrnatildi ✓ Emoji panelini ochib koʻring")
+                }
+                fontSub?.text = fontStatusText()
+            }
+        }.start()
+    }
+
+    // ======================= yangilanishlar =======================
+
+    private fun updateStatusText(): String {
+        val cur = Updater.currentVersion(this)
+        return when {
+            Updater.repo.isBlank() -> "Manba sozlanmagan"
+            prefs.latestVersion > cur -> "Yangi versiya bor: ${prefs.latestTag}"
+            prefs.lastUpdateCheck > 0L -> "Sizda eng soʻnggi versiya ✓"
+            else -> "Hozirgi versiya: ${Updater.currentVersionName(this)}"
+        }
+    }
+
+    private fun setUpdateBusy(busy: Boolean, text: String?) {
+        updateTile?.fast = busy
+        if (text != null) updateSub?.text = text
+    }
+
+    private fun checkUpdates(user: Boolean) {
+        if (checking || installing) return
+        if (Updater.repo.isBlank()) {
+            toast("Yangilanish manbasi sozlanmagan (README'ga qarang)")
+            return
+        }
+        checking = true
+        setUpdateBusy(true, "Tekshirilmoqda…")
+        Thread {
+            try {
+                val r = Updater.fetchLatest()
+                Updater.remember(this, r)
+                runOnUiThread {
+                    checking = false
+                    if (isFinishing) return@runOnUiThread
+                    if (r.version > Updater.currentVersion(this)) {
+                        setUpdateBusy(false, "Yangi versiya bor: ${r.tag}")
+                        showUpdateDialog(r)
+                    } else {
+                        setUpdateBusy(false, "Sizda eng soʻnggi versiya ✓")
+                        if (user) toast("Sizda eng soʻnggi versiya")
+                    }
+                }
+            } catch (e: Exception) {
+                runOnUiThread {
+                    checking = false
+                    setUpdateBusy(false, e.message ?: "Tekshirib boʻlmadi")
+                    if (user) toast("Internetni tekshiring")
+                }
+            }
+        }.start()
+    }
+
+    private fun showUpdateDialog(r: Updater.Release) {
+        val size = if (r.size > 0) "\n\nHajmi: %.1f MB".format(r.size / (1024.0 * 1024.0)) else ""
+        val notes = r.notes.ifBlank { "Yangi versiyani oʻrnatasizmi?" }
+        AlertDialog.Builder(this)
+            .setTitle("Yangi versiya: ${r.tag}")
+            .setMessage(notes + size)
+            .setPositiveButton("Yangilash") { _, _ -> startInstall(r) }
+            .setNegativeButton("Keyinroq", null)
+            .show()
+    }
+
+    private fun startInstall(r: Updater.Release) {
+        if (installing) return
+        if (!packageManager.canRequestPackageInstalls()) {
+            pendingInstall = r
+            toast("“Nomaʼlum ilovalarni oʻrnatish”ga ruxsat bering")
+            try {
+                startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")))
+            } catch (_: Exception) {
+            }
+            return
+        }
+        pendingInstall = null
+        installing = true
+        setUpdateBusy(true, "Yuklanmoqda… 0%")
+        Thread {
+            try {
+                Updater.install(this, r) { pct -> runOnUiThread { updateSub?.text = "Yuklanmoqda… $pct%" } }
+                runOnUiThread {
+                    installing = false
+                    setUpdateBusy(false, "Oʻrnatish oynasida “Yangilash”ni bosing")
+                }
+            } catch (e: Exception) {
+                runOnUiThread {
+                    installing = false
+                    setUpdateBusy(false, "Yuklab boʻlmadi: ${e.message ?: "xato"}")
+                }
+            }
+        }.start()
+    }
+
+    // ======================= qo'llanma =======================
+
+    private fun maybeShowGuide() {
+        val cur = Updater.currentVersion(this)
+        if (prefs.lastSeenVersion == cur) return
+        val updated = prefs.lastSeenVersion != 0L
+        prefs.lastSeenVersion = cur
+        showGuide(updated)
+    }
+
+    private fun showGuide(updated: Boolean) {
+        val cur = Updater.currentVersion(this)
+        val box = LinearLayout(this)
+        box.orientation = LinearLayout.VERTICAL
+        box.setPadding(dp(22f), dp(20f), dp(22f), dp(8f))
+        box.addView(TextView(this).apply {
+            text = if (updated) "Yangilandi! 🎉" else "Qoʻllanma"
+            textSize = 24f
+            typeface = Typeface.create("sans-serif", Typeface.BOLD)
+            setTextColor(textColor)
+        })
+        box.addView(TextView(this).apply {
+            text = "MROS Keyboard ${Updater.currentVersionName(this@SettingsActivity)}"
+            textSize = 14f
+            setTextColor(subColor)
+            setPadding(0, dp(2f), 0, dp(12f))
+        })
+        val notes = if (prefs.latestVersion == cur && prefs.latestNotes.isNotBlank()) prefs.latestNotes else WHATS_NEW
+        guideHeader(box, "NIMA YANGI")
+        box.addView(TextView(this).apply {
+            text = notes.trim()
+            textSize = 15f
+            setTextColor(textColor)
+            setLineSpacing(0f, 1.15f)
+        })
+        guideHeader(box, "QANDAY ISHLATILADI")
+        guideTip(box, cBlue, { c, x, y, s, p -> Icons.keyboard(c, x, y, s, p) }, "Yoqish",
+            "Sozlamalar tepasidagi “1. Yoqish” va “2. Tanlash” tugmalari.")
+        guideTip(box, cIndigo, { c, x, y, s, p -> Icons.globe(c, x, y, s, p) }, "Tilni almashtirish",
+            "Boʻsh joyni bosib turing yoki yuqoridagi 🌐 UZ belgisini bosing.")
+        guideTip(box, cTeal, { c, x, y, s, p -> Icons.arrowRight(c, x, y, s, p) }, "Kursorni siljitish",
+            "Boʻsh joy ustida barmoqni chapga-oʻngga suring.")
+        guideTip(box, cPurple, { c, x, y, s, p ->
+            p.textSize = s * 0.62f; p.style = Paint.Style.FILL
+            c.drawText("oʻ", x, y - (p.descent() + p.ascent()) / 2f, p)
+        }, "Qoʻshimcha harflar", "Harfni bosib turing: o → oʻ, g → gʻ, у → ў, tepada — raqamlar.")
+        guideTip(box, cGray, { c, x, y, s, p -> Icons.shift(c, x, y, s, p, 2) }, "CAPS LOCK",
+            "Shift’ni ikki marta tez bosing.")
+        guideTip(box, cYellow, { c, x, y, s, p -> Icons.smiley(c, x, y, s, p) }, "Emoji",
+            "😊 tugmasi. Emoji ustida bosib turing — teri rangi. Tepada — qidiruv.")
+        guideTip(box, cOrange, { c, x, y, s, p -> Icons.clipboard(c, x, y, s, p) }, "Bufer",
+            "Yuqoridagi 📋 — nusxa olingan matnlar. Bosib turing — oʻchirish.")
+        guideTip(box, cIndigo, { c, x, y, s, p -> Icons.font(c, x, y, s, p) }, "Shaxsiy shrift",
+            "Sozlamalar → Shaxsiy shrift → “TTF fayl yuklash”.")
+        guideTip(box, cGreen, { c, x, y, s, p -> Icons.sync(c, x, y, s, p) }, "Yangilanishlar",
+            "Yangi versiya chiqsa bildirishnoma keladi — bir bosishda oʻrnatiladi.")
+        val sv = ScrollView(this)
+        sv.addView(box)
+        AlertDialog.Builder(this)
+            .setView(sv)
+            .setPositiveButton("Tushunarli", null)
+            .show()
+    }
+
+    private fun guideHeader(box: LinearLayout, t: String) {
+        box.addView(TextView(this).apply {
+            text = t
+            textSize = 12.5f
+            setTextColor(subColor)
+            setPadding(0, dp(16f), 0, dp(6f))
+        })
+    }
+
+    private fun guideTip(box: LinearLayout, color: Int, draw: (Canvas, Float, Float, Float, Paint) -> Unit, title: String, text: String) {
+        val r = LinearLayout(this)
+        r.orientation = LinearLayout.HORIZONTAL
+        r.gravity = Gravity.CENTER_VERTICAL
+        r.setPadding(0, dp(6f), 0, dp(6f))
+        r.addView(IconTile(this, color, draw))
+        val t = LinearLayout(this)
+        t.orientation = LinearLayout.VERTICAL
+        t.setPadding(dp(12f), 0, 0, 0)
+        t.addView(TextView(this).apply {
+            this.text = title
+            textSize = 15.5f
+            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            setTextColor(textColor)
+        })
+        t.addView(TextView(this).apply {
+            this.text = text
+            textSize = 13.5f
+            setTextColor(subColor)
+        })
+        r.addView(t, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        box.addView(r)
+    }
+
+    companion object {
+        private const val REQ_FONT = 71
+        private const val REQ_NOTIF = 72
+        private const val WHATS_NEW = "• Ilova ichidan yangilanish va bildirishnomalar\n" +
+            "• Shaxsiy shrift (TTF) yuklash\n" +
+            "• Qoʻllanma oynasi\n" +
+            "• Info: Telegram kanal va muallif"
+    }
 }

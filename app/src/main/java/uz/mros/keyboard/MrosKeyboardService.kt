@@ -33,6 +33,7 @@ class MrosKeyboardService : InputMethodService() {
         suggest.prepare(prefs.currentLang)
         EmojiData.load(this)
         EmojiImages.init(this)
+        UpdateJobService.ensureScheduled(this)
         clipboard = getSystemService(ClipboardManager::class.java)
         try {
             clipboard?.addPrimaryClipChangedListener(clipListener)

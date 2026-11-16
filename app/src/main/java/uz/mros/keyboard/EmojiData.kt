@@ -53,22 +53,37 @@ object EmojiData {
     private var lookup: Map<String, EmojiItem> = emptyMap()
 
     private var started = false
+
+    @Volatile
+    private var loadedFontKey = Long.MIN_VALUE
+
+    private fun fontKey(p: Prefs) = if (p.emojiStyle == 2) p.fontStamp else 0L
+
+    /** Shaxsiy shrift tanlansa/o'zgarsa — ro'yxatni (glif tekshiruvi bilan) qayta yuklaydi. */
+    fun reloadIfFontChanged(context: Context) {
+        if (!ready) return
+        if (fontKey(Prefs(context)) == loadedFontKey) return
+        load(context, force = true)
+    }
     private val listeners = ArrayList<() -> Unit>()
     private val main = Handler(Looper.getMainLooper())
 
-    fun load(context: Context, onReady: (() -> Unit)? = null) {
-        if (ready) {
+    fun load(context: Context, force: Boolean = false, onReady: (() -> Unit)? = null) {
+        if (ready && !force) {
             onReady?.invoke()
             return
         }
         if (onReady != null) synchronized(listeners) { listeners.add(onReady) }
         synchronized(this) {
-            if (started) return
+            if (started && !force) return
             started = true
         }
         val app = context.applicationContext
         Thread {
             val paint = Paint()
+            val prefs = Prefs(app)
+            val key = fontKey(prefs)
+            if (key != 0L) paint.typeface = CustomFont.typeface(app, prefs.fontStamp)
             val cats = List(8) { ArrayList<EmojiItem>() }
             val map = HashMap<String, EmojiItem>()
             try {
@@ -96,6 +111,7 @@ object EmojiData {
             categories = cats
             all = cats.flatten()
             lookup = map
+            loadedFontKey = key
             ready = true
             main.post {
                 val ls = synchronized(listeners) { listeners.toList().also { listeners.clear() } }

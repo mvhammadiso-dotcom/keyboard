@@ -12,6 +12,8 @@ class Prefs(context: Context) {
     private fun setB(key: String, v: Boolean) = sp.edit().putBoolean(key, v).apply()
     private fun i(key: String, def: Int) = sp.getInt(key, def)
     private fun setI(key: String, v: Int) = sp.edit().putInt(key, v).apply()
+    private fun l(key: String, def: Long) = sp.getLong(key, def)
+    private fun setL(key: String, v: Long) = sp.edit().putLong(key, v).apply()
     private fun s(key: String, def: String) = sp.getString(key, def) ?: def
     private fun setS(key: String, v: String) = sp.edit().putString(key, v).apply()
 
@@ -55,7 +57,43 @@ class Prefs(context: Context) {
         get() = i("bottom_offset", 6)
         set(v) = setI("bottom_offset", v)
 
-    /** 0 = 3D emoji (bor bo'lsa), 1 = tizim emojisi */
+    // ---- yangilanishlar ----
+    var updateNotify: Boolean
+        get() = b("update_notify", true)
+        set(v) = setB("update_notify", v)
+
+    /** Qo'llanma oxirgi marta ko'rsatilgan versiya */
+    var lastSeenVersion: Long
+        get() = l("last_seen_version", 0L)
+        set(v) = setL("last_seen_version", v)
+
+    /** Qaysi versiya haqida bildirishnoma yuborilgan */
+    var notifiedVersion: Long
+        get() = l("notified_version", 0L)
+        set(v) = setL("notified_version", v)
+
+    var lastUpdateCheck: Long
+        get() = l("last_update_check", 0L)
+        set(v) = setL("last_update_check", v)
+
+    var latestVersion: Long
+        get() = l("latest_version", 0L)
+        set(v) = setL("latest_version", v)
+
+    var latestTag: String
+        get() = s("latest_tag", "")
+        set(v) = setS("latest_tag", v)
+
+    var latestNotes: String
+        get() = s("latest_notes", "")
+        set(v) = setS("latest_notes", v)
+
+    /** Shaxsiy shrift o'zgargan vaqt (keshni yangilash uchun) */
+    var fontStamp: Long
+        get() = l("font_stamp", 0L)
+        set(v) = setL("font_stamp", v)
+
+    /** 0 = 3D emoji (bor bo'lsa), 1 = tizim emojisi, 2 = shaxsiy shrift */
     var emojiStyle: Int
         get() = i("emoji_style", 0)
         set(v) = setI("emoji_style", v)

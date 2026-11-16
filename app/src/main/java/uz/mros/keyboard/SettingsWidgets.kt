@@ -118,3 +118,42 @@ class IconTile(
         draw(c, w / 2f, w / 2f, w * 0.62f, icon)
     }
 }
+
+/** Aylanib turadigan ikonka (🔄 yangilanishlar). fast = tekshirish/yuklash paytida tez aylanadi. */
+class SpinTile(
+    context: Context,
+    private val color: Int,
+    private val draw: (Canvas, Float, Float, Float, Paint) -> Unit,
+) : View(context) {
+    private val density = resources.displayMetrics.density
+    private val rect = RectF()
+    private val bg = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val icon = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        this.color = 0xFFFFFFFF.toInt()
+        strokeWidth = 1.8f * density
+    }
+    private var angle = 0f
+    private var last = 0L
+    var fast = false
+
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val s = (30 * density).toInt()
+        setMeasuredDimension(s, s)
+    }
+
+    override fun onDraw(c: Canvas) {
+        val now = SystemClock.uptimeMillis()
+        val dt = if (last == 0L) 0f else ((now - last) / 1000f).coerceIn(0f, 0.05f)
+        last = now
+        angle = (angle + dt * (if (fast) 420f else 70f)) % 360f
+        val w = width.toFloat()
+        rect.set(0f, 0f, w, w)
+        bg.color = color
+        c.drawRoundRect(rect, w * 0.24f, w * 0.24f, bg)
+        c.save()
+        c.rotate(angle, w / 2f, w / 2f)
+        draw(c, w / 2f, w / 2f, w * 0.62f, icon)
+        c.restore()
+        postInvalidateOnAnimation()
+    }
+}

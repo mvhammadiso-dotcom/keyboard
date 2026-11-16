@@ -103,6 +103,7 @@ class KeyboardRootView(private val ime: MrosKeyboardService) : FrameLayout(ime),
         lang = prefs.currentLang
         ime.suggest.prepare(lang)
         ime.checkResets()
+        EmojiData.reloadIfFontChanged(ime)
         applySizes()
         applyTheme()
 

@@ -56,6 +56,11 @@ class EmojiPanelView(context: Context, private val host: Host) : View(context) {
     private var barIconSize = dp(20f)
     private var emojiSize = dp(30f)
     private val use3d get() = host.prefs.emojiStyle == 0
+
+    private fun applyEmojiFont() {
+        val p = host.prefs
+        emojiPaint.typeface = if (p.emojiStyle == 2) CustomFont.typeface(context, p.fontStamp) else null
+    }
     private val onImages: () -> Unit = { invalidate() }
 
     override fun onAttachedToWindow() {
@@ -173,6 +178,7 @@ class EmojiPanelView(context: Context, private val host: Host) : View(context) {
 
     override fun onDraw(c: Canvas) {
         val g = host.glass
+        applyEmojiFont()
         val animating = scroll.update()
         val sx = scroll.pos
         val w = width.toFloat()

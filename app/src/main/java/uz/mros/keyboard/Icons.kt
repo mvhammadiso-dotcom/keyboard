@@ -426,4 +426,60 @@ object Icons {
         path.close()
         fill(p) { c.drawPath(path, p) }
     }
+
+    /** Aylanma strelkalar (yangilanish) */
+    fun sync(c: Canvas, cx: Float, cy: Float, s: Float, p: Paint) {
+        val r = 0.34f * s
+        stroke(p) {
+            oval.set(cx - r, cy - r, cx + r, cy + r)
+            c.drawArc(oval, -70f, 160f, false, p)
+            c.drawArc(oval, 110f, 160f, false, p)
+            val h = 0.15f * s
+            // 90° nuqtadagi o'q (chapga harakat)
+            c.drawLine(cx, cy + r, cx + 0.82f * h, cy + r - 0.57f * h, p)
+            c.drawLine(cx, cy + r, cx + 0.82f * h, cy + r + 0.57f * h, p)
+            // 270° nuqtadagi o'q (o'ngga harakat)
+            c.drawLine(cx, cy - r, cx - 0.82f * h, cy - r - 0.57f * h, p)
+            c.drawLine(cx, cy - r, cx - 0.82f * h, cy - r + 0.57f * h, p)
+        }
+    }
+
+    /** Qog'oz samolyot (yuborish) */
+    fun plane(c: Canvas, cx: Float, cy: Float, s: Float, p: Paint) {
+        path.reset()
+        path.moveTo(cx - 0.42f * s, cy - 0.02f * s)
+        path.lineTo(cx + 0.4f * s, cy - 0.36f * s)
+        path.lineTo(cx + 0.18f * s, cy + 0.38f * s)
+        path.lineTo(cx - 0.02f * s, cy + 0.1f * s)
+        path.close()
+        fill(p) { c.drawPath(path, p) }
+    }
+
+    fun bell(c: Canvas, cx: Float, cy: Float, s: Float, p: Paint) {
+        stroke(p) {
+            path.reset()
+            path.moveTo(cx - 0.32f * s, cy + 0.2f * s)
+            path.lineTo(cx - 0.26f * s, cy - 0.04f * s)
+            path.cubicTo(cx - 0.26f * s, cy - 0.42f * s, cx + 0.26f * s, cy - 0.42f * s, cx + 0.26f * s, cy - 0.04f * s)
+            path.lineTo(cx + 0.32f * s, cy + 0.2f * s)
+            path.close()
+            c.drawPath(path, p)
+            c.drawLine(cx - 0.08f * s, cy + 0.32f * s, cx + 0.08f * s, cy + 0.32f * s, p)
+        }
+    }
+
+    fun info(c: Canvas, cx: Float, cy: Float, s: Float, p: Paint) {
+        stroke(p) {
+            c.drawLine(cx, cy - 0.04f * s, cx, cy + 0.3f * s, p)
+        }
+        fill(p) { c.drawCircle(cx, cy - 0.24f * s, 0.06f * s, p) }
+    }
+
+    fun font(c: Canvas, cx: Float, cy: Float, s: Float, p: Paint) {
+        stroke(p) {
+            c.drawLine(cx - 0.3f * s, cy + 0.36f * s, cx, cy - 0.36f * s, p)
+            c.drawLine(cx, cy - 0.36f * s, cx + 0.3f * s, cy + 0.36f * s, p)
+            c.drawLine(cx - 0.17f * s, cy + 0.08f * s, cx + 0.17f * s, cy + 0.08f * s, p)
+        }
+    }
 }
