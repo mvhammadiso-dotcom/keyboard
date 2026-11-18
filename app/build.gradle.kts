@@ -17,6 +17,8 @@ android {
         versionName = "1.0.$runNumber"
         // Yangilanishlar olinadigan ochiq GitHub repo (owner/repo) — workflow'dan keladi
         buildConfigField("String", "UPDATE_REPO", "\"${System.getenv("UPDATE_REPO") ?: ""}\"")
+        // Yopiq repo uchun: faqat o'qish huquqli token (GitHub Secrets → UPDATE_TOKEN). Ochiq repo bo'lsa — bo'sh.
+        buildConfigField("String", "UPDATE_TOKEN", "\"${(System.getenv("UPDATE_TOKEN") ?: "").filter { it.isLetterOrDigit() || it == '_' }}\"")
     }
 
     buildFeatures {

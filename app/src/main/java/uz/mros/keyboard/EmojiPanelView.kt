@@ -59,7 +59,7 @@ class EmojiPanelView(context: Context, private val host: Host) : View(context) {
 
     private fun applyEmojiFont() {
         val p = host.prefs
-        emojiPaint.typeface = if (p.emojiStyle == 2) CustomFont.typeface(context, p.fontStamp) else null
+        emojiPaint.typeface = if (p.emojiStyle == 2) CustomFont.cachedOrLoad(context, p.fontStamp) { invalidate() } else null
     }
     private val onImages: () -> Unit = { invalidate() }
 

@@ -58,6 +58,15 @@ class Prefs(context: Context) {
         set(v) = setI("bottom_offset", v)
 
     // ---- yangilanishlar ----
+    /** Yangi versiyani o'zi yuklab o'rnatish (Wi-Fi'da) */
+    var autoUpdate: Boolean
+        get() = b("auto_update", true)
+        set(v) = setB("auto_update", v)
+
+    var autoInstalledVersion: Long
+        get() = l("auto_installed_version", 0L)
+        set(v) = setL("auto_installed_version", v)
+
     var updateNotify: Boolean
         get() = b("update_notify", true)
         set(v) = setB("update_notify", v)

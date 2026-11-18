@@ -28,16 +28,21 @@ Har bir `push` dan keyin **Actions** avtomatik APK yig'adi va **Releases** bo'li
 ### Kompyuterdan
 ZIP ichidagi `mros-keyboard` papkasi mazmunini repoga yuklang (`.github` papkasi bilan birga) va push qiling.
 
-## Ilova ichidan yangilanish (yopiq repo uchun)
-Ilova yangilanishni **ochiq** repodagi Releases'dan oladi (yopiq repoga ilova kira olmaydi).
-1. GitHub'da yangi **ochiq** repo oching, masalan `mros-keyboard-releases` ("Add a README file" belgilansin).
-2. GitHub → Settings → Developer settings → **Fine-grained token** yarating:
-   faqat shu ochiq repo, ruxsat: **Contents → Read and write**.
-3. Asosiy (yopiq) repoda: Settings → Secrets and variables → Actions:
-   - **Secrets** → `RELEASES_TOKEN` = token
-   - **Variables** → `RELEASES_REPO` = `foydalanuvchi/mros-keyboard-releases`
-4. Keyingi build'dan boshlab APK ochiq repoga joylanadi, ilova esa uni topib, bildirishnoma yuboradi.
-"Nima yangi" matni `release-notes.md` faylidan olinadi — har build oldidan tahrirlang.
+## Avtomatik yangilanish
+ZIP (yoki kod) GitHub'ga yuklanadi → Actions APK yig'ib, shu repoda Release qiladi →
+telefondagi ilova uni o'zi topadi (har 6 soatda va klaviatura ochilganda), Wi-Fi'da o'zi yuklab o'rnatadi
+yoki bildirishnoma yuboradi.
+
+- **Repo ochiq bo'lsa** — hech narsa sozlash shart emas.
+- **Repo yopiq bo'lsa** — bitta kalit kerak:
+  1. GitHub → Settings → Developer settings → Fine-grained tokens → Generate:
+     faqat shu repo, ruxsat **Contents: Read-only**.
+  2. Repo → Settings → Secrets and variables → Actions → New secret: `UPDATE_TOKEN` = token.
+  Token APK ichiga yoziladi — APK'ni boshqalarga tarqatmang.
+
+Birinchi marta (yangilanish funksiyasi bor versiyani) qo'lda o'rnatasiz. Android tizimi birinchi
+yangilanishda "O'rnatish"ni so'raydi, keyingilari (Android 12+) so'rovsiz o'tadi.
+"Nima yangi" matni `release-notes.md` faylidan olinadi.
 
 ## Shaxsiy shrift
 Sozlamalar → Shaxsiy shrift → "TTF fayl yuklash". Tanlangan shrift emoji panelida ishlatiladi.

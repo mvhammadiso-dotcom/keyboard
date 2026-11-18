@@ -151,6 +151,12 @@ class SettingsActivity : Activity() {
         updateSub = subtitleOf(updRow)
         updRow.setOnClickListener { checkUpdates(true) }
         separator(upd)
+        switchRow(upd, tile(cBlue) { c, x, y, s, p -> Icons.sync(c, x, y, s, p) }, "Avtomatik yangilash",
+            "Wi-Fi'da yangi versiyani oʻzi yuklab oʻrnatadi", prefs.autoUpdate) {
+            prefs.autoUpdate = it
+            UpdateJobService.ensureScheduled(this)
+        }
+        separator(upd)
         switchRow(upd, tile(cRed) { c, x, y, s, p -> Icons.bell(c, x, y, s, p) }, "Yangilanish bildirishnomalari",
             "Yangi versiya chiqsa xabar beradi", prefs.updateNotify) {
             prefs.updateNotify = it
@@ -332,10 +338,10 @@ class SettingsActivity : Activity() {
             "Versiya: ${Updater.currentVersionName(this)}", null)
         separator(info)
         row(info, tile(cBlue) { c, x, y, s, p -> Icons.plane(c, x - s * 0.04f, y, s, p) }, "Telegram kanal",
-            "t.me/mrosapp", chevron()).setOnClickListener { openLink("https://t.me/mrosapp") }
+            "t.me/mrosapp", chevron()).setOnClickListener { openTelegram("mrosapp") }
         separator(info)
         row(info, tile(cBlue) { c, x, y, s, p -> Icons.plane(c, x - s * 0.04f, y, s, p) }, "Creator: mvhammadiso",
-            "t.me/mvhammadiso", chevron()).setOnClickListener { openLink("https://t.me/mvhammadiso") }
+            "t.me/mvhammadiso", chevron()).setOnClickListener { openTelegram("mvhammadiso") }
 
         setContentView(scroll)
         window.statusBarColor = Color.TRANSPARENT
@@ -619,6 +625,18 @@ class SettingsActivity : Activity() {
     private fun subtitleOf(row: LinearLayout): TextView? =
         (row.getChildAt(1) as? LinearLayout)?.getChildAt(1) as? TextView
 
+    /** Telegram ilovasini to'g'ridan-to'g'ri ochadi; Telegram o'rnatilmagan bo'lsa — brauzerda. */
+    private fun openTelegram(username: String) {
+        val app = Intent(Intent.ACTION_VIEW, Uri.parse("tg://resolve?domain=$username"))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        try {
+            startActivity(app)
+            return
+        } catch (_: Exception) {
+        }
+        openLink("https://t.me/$username")
+    }
+
     private fun openLink(url: String) {
         try {
             startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
@@ -754,7 +772,7 @@ class SettingsActivity : Activity() {
         setUpdateBusy(true, "Yuklanmoqda… 0%")
         Thread {
             try {
-                Updater.install(this, r) { pct -> runOnUiThread { updateSub?.text = "Yuklanmoqda… $pct%" } }
+                Updater.install(this, r, fromUser = true) { pct -> runOnUiThread { updateSub?.text = "Yuklanmoqda… $pct%" } }
                 runOnUiThread {
                     installing = false
                     setUpdateBusy(false, "Oʻrnatish oynasida “Yangilash”ni bosing")

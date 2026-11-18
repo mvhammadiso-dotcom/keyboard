@@ -184,6 +184,10 @@ class GlassTheme(val dark: Boolean, val density: Float) {
     private var bgShader: Shader? = null
     private val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val glowPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private var blobW = 0
+    private var blobH = 0
+    private var blobShaders: Array<Shader>? = null
+    private var blobSpecs = FloatArray(9)
 
     /** phase: 0..1 sekin harakat (dog'lar suzib yuradi) */
     fun drawBackground(c: Canvas, w: Int, h: Int, translucent: Boolean, phase: Float) {
@@ -199,10 +203,29 @@ class GlassTheme(val dark: Boolean, val density: Float) {
             c.drawRect(0f, 0f, fw, fh, bgPaint)
             bgPaint.shader = null
         }
-        val a = phase * 2f * Math.PI.toFloat()
-        blob(c, fw * (0.12f + 0.06f * kotlin.math.sin(a)), fh * (0.2f + 0.1f * kotlin.math.cos(a)), fw * 0.55f, blobCyan)
-        blob(c, fw * (0.88f - 0.07f * kotlin.math.cos(a)), fh * (0.85f + 0.08f * kotlin.math.sin(a)), fw * 0.5f, blobViolet)
-        blob(c, fw * (0.5f + 0.12f * kotlin.math.sin(a * 0.5f)), fh * 0.05f, fw * 0.45f, blobWhite)
+        // dog'lar keshlanadi — har kadrda yangi gradient yaratilmaydi
+        if (w != blobW || h != blobH || blobShaders == null) {
+            blobW = w; blobH = h
+            val a = phase * 2f * Math.PI.toFloat()
+            blobSpecs = floatArrayOf(
+                fw * (0.12f + 0.06f * kotlin.math.sin(a)), fh * (0.2f + 0.1f * kotlin.math.cos(a)), fw * 0.55f,
+                fw * (0.88f - 0.07f * kotlin.math.cos(a)), fh * (0.85f + 0.08f * kotlin.math.sin(a)), fw * 0.5f,
+                fw * (0.5f + 0.12f * kotlin.math.sin(a * 0.5f)), fh * 0.05f, fw * 0.45f,
+            )
+            val cols = intArrayOf(blobCyan, blobViolet, blobWhite)
+            blobShaders = Array(3) { i ->
+                val sp = blobSpecs
+                RadialGradient(sp[i * 3], sp[i * 3 + 1], sp[i * 3 + 2], cols[i], cols[i] and 0x00FFFFFF, Shader.TileMode.CLAMP)
+            }
+        }
+        val shs = blobShaders
+        if (shs != null) {
+            for (i in 0 until 3) {
+                glowPaint.shader = shs[i]
+                c.drawCircle(blobSpecs[i * 3], blobSpecs[i * 3 + 1], blobSpecs[i * 3 + 2], glowPaint)
+            }
+            glowPaint.shader = null
+        }
         // yuqori yaltiroq chiziq (shisha qirrasi)
         bgPaint.color = if (dark) 0x33FFFFFF else 0xCCFFFFFF.toInt()
         c.drawRect(0f, 0f, fw, maxOf(1f, density * 0.9f), bgPaint)

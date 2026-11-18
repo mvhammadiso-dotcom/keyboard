@@ -29,13 +29,17 @@ object Notifier {
     }
 
     private fun post(ctx: Context, id: Int, title: String, text: String, open: String) {
+        val i = Intent(ctx, SettingsActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            .putExtra(EXTRA_OPEN, open)
+        post(ctx, id, title, text, i)
+    }
+
+    private fun post(ctx: Context, id: Int, title: String, text: String, target: Intent) {
         if (!canPost(ctx)) return
         try {
             ensureChannel(ctx)
-            val i = Intent(ctx, SettingsActivity::class.java)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                .putExtra(EXTRA_OPEN, open)
-            val pi = PendingIntent.getActivity(ctx, id, i, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+            val pi = PendingIntent.getActivity(ctx, id, target, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
             val n = Notification.Builder(ctx, CHANNEL)
                 .setSmallIcon(R.drawable.ic_stat_update)
                 .setContentTitle(title)
@@ -57,6 +61,11 @@ object Notifier {
 
     fun updated(ctx: Context, version: String) {
         post(ctx, 2, "MROS Keyboard yangilandi ✓", "Versiya $version. Nima yangi va qanday ishlatish — koʻrish uchun bosing.", OPEN_GUIDE)
+    }
+
+    /** Yangilanish yuklab olindi, tizim tasdiqlashni so'rayapti */
+    fun readyToInstall(ctx: Context, confirm: Intent) {
+        post(ctx, 4, "Yangilanish tayyor", "Oʻrnatish uchun bosing — bir soniya oladi.", confirm)
     }
 
     fun installFailed(ctx: Context, msg: String) {

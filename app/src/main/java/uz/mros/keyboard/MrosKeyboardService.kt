@@ -49,6 +49,7 @@ class MrosKeyboardService : InputMethodService() {
 
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
+        if (!restarting) Updater.maybeCheckInBackground(this)
         if (info != null) root?.onStartInput(info, restarting)
     }
 
@@ -92,6 +93,9 @@ class MrosKeyboardService : InputMethodService() {
      * IME oynasining foni (navigatsiya paneli ostidagi joy ham shu rangda bo'ladi).
      * true qaytarsa — orqa fon xiralashtirish (blur) ishlayapti.
      */
+    private var blurWasOn = false
+    private var lightNavApplied: Boolean? = null
+
     fun applyWindowStyle(g: GlassTheme, wantBlur: Boolean): Boolean {
         val w = window?.window ?: return false
         var blur = false
@@ -103,12 +107,18 @@ class MrosKeyboardService : InputMethodService() {
             if (blur) {
                 w.setBackgroundDrawable(ColorDrawable(g.blurTint))
                 if (Build.VERSION.SDK_INT >= 31) w.setBackgroundBlurRadius((40 * resources.displayMetrics.density).toInt())
+                blurWasOn = true
             } else {
-                w.setBackgroundDrawable(ColorDrawable(g.bgBottom))
-                if (Build.VERSION.SDK_INT >= 31) w.setBackgroundBlurRadius(0)
+                // Fonni klaviaturaning o'zi chizadi (navigatsiya paneli ostini ham) — oyna shaffof qoladi
+                w.setBackgroundDrawable(ColorDrawable(0))
+                if (blurWasOn && Build.VERSION.SDK_INT >= 31) w.setBackgroundBlurRadius(0)
+                blurWasOn = false
             }
             @Suppress("DEPRECATION")
             w.navigationBarColor = if (blur) g.blurTint else g.bgBottom
+            val wantLight = !g.dark
+            if (lightNavApplied == wantLight) return blur
+            lightNavApplied = wantLight
             if (Build.VERSION.SDK_INT >= 30) {
                 w.insetsController?.setSystemBarsAppearance(
                     if (g.dark) 0 else WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS,

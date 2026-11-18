@@ -59,7 +59,8 @@ class KeyboardRootView(private val ime: MrosKeyboardService) : FrameLayout(ime),
 
     private var toolbarH = 0
     private var keysH = 0
-    private var navInset = 0
+    private var navInset = lastNavInset
+    private var appliedThemeKey: String? = null
 
     // suyuq orqa fon: bosilgan joyda tarqaladigan yorug'lik + sekin suzuvchi dog'lar
     private class Glow(val x: Float, val y: Float, val start: Long, val color: Int)
@@ -88,6 +89,7 @@ class KeyboardRootView(private val ime: MrosKeyboardService) : FrameLayout(ime),
                 navInset = b
                 applyBottomPadding()
             }
+            lastNavInset = b
             insets
         }
         applySizes()
@@ -160,6 +162,15 @@ class KeyboardRootView(private val ime: MrosKeyboardService) : FrameLayout(ime),
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
+        // Birinchi o'lchashdan oldin insetni sinxron olamiz — keyin balandlik sakramasin
+        val wi = rootWindowInsets
+        if (wi != null) {
+            val b = bottomInsetOf(wi)
+            if (b != navInset) {
+                navInset = b
+                applyBottomPadding()
+            }
+        }
         requestApplyInsets()
     }
 
@@ -170,6 +181,12 @@ class KeyboardRootView(private val ime: MrosKeyboardService) : FrameLayout(ime),
         } else {
             insets.systemWindowInsetBottom
         }
+    }
+
+    companion object {
+        /** Oxirgi ma'lum navigatsiya paneli balandligi — keyingi ochilishda darhol ishlatiladi (sakrash bo'lmasin) */
+        @Volatile
+        private var lastNavInset = 0
     }
 
     private fun applyBottomPadding() {
@@ -200,8 +217,16 @@ class KeyboardRootView(private val ime: MrosKeyboardService) : FrameLayout(ime),
         else -> (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
     }
 
-    private fun applyTheme() {
-        glass = GlassTheme(isDark(), density)
+    /**
+     * Mavzu faqat o'zgarganda qo'llanadi. Oyna sozlamalarini (fon, navigatsiya paneli) har ochilishda
+     * qayta o'rnatish klaviatura chiqish animatsiyasini buzib, oynani "kesilgan" holda qotirib qo'yardi.
+     */
+    private fun applyTheme(force: Boolean = false) {
+        val dark = isDark()
+        val key = "$dark|${prefs.blur}"
+        if (!force && key == appliedThemeKey) return
+        appliedThemeKey = key
+        glass = GlassTheme(dark, density)
         blurActive = ime.applyWindowStyle(glass, prefs.blur)
         invalidateAll()
     }
@@ -220,29 +245,27 @@ class KeyboardRootView(private val ime: MrosKeyboardService) : FrameLayout(ime),
         val rows = if (prefs.numberRow) 5 else 4
         val rowH = dp(54f) * scale
         toolbarH = dp(46f).toInt()
-        keysH = (rowH * rows + dp(8f)).toInt()
-        keyboard.preferredHeight = keysH
-        emojiPanel.preferredHeight = toolbarH + keysH
-        clipPanel.preferredHeight = keysH
+        val newKeysH = (rowH * rows + dp(8f)).toInt()
         keyboard.showPreviews = prefs.keyPopup
         applyBottomPadding()
-        keyboard.requestLayout()
-        emojiPanel.requestLayout()
-        clipPanel.requestLayout()
+        // faqat o'lcham haqiqatan o'zgarganda qayta joylashtiramiz
+        if (newKeysH != keysH || keyboard.preferredHeight != newKeysH) {
+            keysH = newKeysH
+            keyboard.preferredHeight = keysH
+            emojiPanel.preferredHeight = toolbarH + keysH
+            clipPanel.preferredHeight = keysH
+            keyboard.requestLayout()
+            emojiPanel.requestLayout()
+            clipPanel.requestLayout()
+        }
     }
 
     override fun dispatchDraw(canvas: Canvas) {
         val now = SystemClock.uptimeMillis()
         val liquid = prefs.liquidEffects
         var animate = false
-        if (liquid && now - lastTouchTime < 2500L) {
-            val dt = if (lastBgFrame == 0L) 0.016f else ((now - lastBgFrame) / 1000f).coerceIn(0f, 0.05f)
-            phase = (phase + dt / 14f) % 1f
-            lastBgFrame = now
-            animate = true
-        } else {
-            lastBgFrame = 0L
-        }
+        // orqa fon dog'lari endi qimirlamaydi: doimiy qayta chizish klaviaturani sekinlashtirardi
+        lastBgFrame = 0L
         glass.drawBackground(canvas, width, height, blurActive, phase)
         if (liquid && glows.isNotEmpty()) {
             val it = glows.iterator()
@@ -648,7 +671,7 @@ class KeyboardRootView(private val ime: MrosKeyboardService) : FrameLayout(ime),
             ToolbarView.ACTION_CLIPBOARD -> showPanel(Panel.CLIPBOARD)
             ToolbarView.ACTION_THEME -> {
                 prefs.theme = (prefs.theme + 1) % 3
-                applyTheme()
+                applyTheme(force = true)
             }
             ToolbarView.ACTION_HIDE -> ime.requestHideSelf(0)
             ToolbarView.ACTION_BACK -> showPanel(Panel.KEYS)

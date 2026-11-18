@@ -10,14 +10,38 @@ import java.io.File
  * Fayl ilovaning ichki papkasiga nusxalanadi.
  */
 object CustomFont {
+    @Volatile
     private var cached: Typeface? = null
+
+    @Volatile
     private var cachedStamp = -1L
+    private var loadingStamp = -1L
+    private val main = android.os.Handler(android.os.Looper.getMainLooper())
 
     fun file(ctx: Context) = File(ctx.filesDir, "custom_emoji_font.ttf")
 
     fun exists(ctx: Context) = file(ctx).exists()
 
-    /** stamp o'zgarsa fayl qayta o'qiladi. */
+    /**
+     * Chizish uchun: tayyor bo'lsa qaytaradi, bo'lmasa fon oqimida yuklashni boshlab null qaytaradi
+     * (katta shrift fayli asosiy oqimni qotirmasin). Tayyor bo'lganda onReady chaqiriladi.
+     */
+    fun cachedOrLoad(ctx: Context, stamp: Long, onReady: () -> Unit): Typeface? {
+        if (stamp == cachedStamp) return cached
+        synchronized(this) {
+            if (loadingStamp == stamp) return null
+            loadingStamp = stamp
+        }
+        val app = ctx.applicationContext
+        Thread {
+            typeface(app, stamp)
+            main.post { onReady() }
+        }.start()
+        return null
+    }
+
+    /** Bloklovchi: stamp o'zgarsa fayl qayta o'qiladi. Fon oqimida chaqiring. */
+    @Synchronized
     fun typeface(ctx: Context, stamp: Long): Typeface? {
         if (stamp != cachedStamp) {
             cachedStamp = stamp

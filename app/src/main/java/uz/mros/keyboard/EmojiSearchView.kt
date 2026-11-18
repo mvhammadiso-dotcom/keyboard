@@ -95,7 +95,7 @@ class EmojiSearchView(context: Context, private val host: Host) : View(context) 
     override fun onDraw(c: Canvas) {
         val g = host.glass
         val pr = host.prefs
-        emojiPaint.typeface = if (pr.emojiStyle == 2) CustomFont.typeface(context, pr.fontStamp) else null
+        emojiPaint.typeface = if (pr.emojiStyle == 2) CustomFont.cachedOrLoad(context, pr.fontStamp) { invalidate() } else null
         val animating = scroll.update()
         g.drawGlass(c, pillRect, pillRect.height() / 2f, GlassTheme.Fill.PILL, 0f, withShadow = false)
         strokePaint.color = g.textSecondary
