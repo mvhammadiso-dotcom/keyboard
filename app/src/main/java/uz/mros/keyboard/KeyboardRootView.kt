@@ -59,7 +59,8 @@ class KeyboardRootView(private val ime: MrosKeyboardService) : FrameLayout(ime),
 
     private var toolbarH = 0
     private var keysH = 0
-    private var navInset = lastNavInset
+    /** Tizim panellari uchun joy: [chap, o'ng, past] — yonboshda navigatsiya paneli/kamera yon tomonda bo'ladi */
+    private var sysInsets: IntArray = (lastInsets[currentOrientation()] ?: IntArray(3)).copyOf()
     private var appliedThemeKey: String? = null
 
     // suyuq orqa fon: bosilgan joyda tarqaladigan yorug'lik + sekin suzuvchi dog'lar
@@ -84,12 +85,7 @@ class KeyboardRootView(private val ime: MrosKeyboardService) : FrameLayout(ime),
         // Android 15 (edge-to-edge): tizimning pastki tugmalari (⌄ yopish, klaviatura almashtirish)
         // klaviatura ustiga tushmasligi uchun navigatsiya paneli balandligicha joy qoldiramiz.
         setOnApplyWindowInsetsListener { _, insets ->
-            val b = bottomInsetOf(insets)
-            if (b != navInset) {
-                navInset = b
-                applyBottomPadding()
-            }
-            lastNavInset = b
+            updateInsets(insetsOf(insets))
             insets
         }
         applySizes()
@@ -164,34 +160,41 @@ class KeyboardRootView(private val ime: MrosKeyboardService) : FrameLayout(ime),
         super.onAttachedToWindow()
         // Birinchi o'lchashdan oldin insetni sinxron olamiz — keyin balandlik sakramasin
         val wi = rootWindowInsets
-        if (wi != null) {
-            val b = bottomInsetOf(wi)
-            if (b != navInset) {
-                navInset = b
-                applyBottomPadding()
-            }
-        }
+        if (wi != null) updateInsets(insetsOf(wi))
         requestApplyInsets()
     }
 
     @Suppress("DEPRECATION")
-    private fun bottomInsetOf(insets: WindowInsets): Int {
+    private fun insetsOf(insets: WindowInsets): IntArray {
         return if (Build.VERSION.SDK_INT >= 30) {
-            insets.getInsets(WindowInsets.Type.navigationBars()).bottom
+            val nb = insets.getInsets(WindowInsets.Type.navigationBars())
+            val dc = insets.getInsets(WindowInsets.Type.displayCutout())
+            intArrayOf(maxOf(nb.left, dc.left), maxOf(nb.right, dc.right), nb.bottom)
         } else {
-            insets.systemWindowInsetBottom
+            intArrayOf(insets.systemWindowInsetLeft, insets.systemWindowInsetRight, insets.systemWindowInsetBottom)
         }
     }
 
+    private fun updateInsets(v: IntArray) {
+        lastInsets[currentOrientation()] = v.copyOf()
+        if (!v.contentEquals(sysInsets)) {
+            sysInsets = v
+            applyBottomPadding()
+        }
+    }
+
+    private fun currentOrientation(): Int = resources.configuration.orientation
+
+    private fun isLandscape(): Boolean = currentOrientation() == Configuration.ORIENTATION_LANDSCAPE
+
     companion object {
-        /** Oxirgi ma'lum navigatsiya paneli balandligi — keyingi ochilishda darhol ishlatiladi (sakrash bo'lmasin) */
-        @Volatile
-        private var lastNavInset = 0
+        /** Har bir holat (tik/yonbosh) uchun oxirgi ma'lum insetlar — qayta ochilganda sakrash bo'lmasin */
+        private val lastInsets = HashMap<Int, IntArray>()
     }
 
     private fun applyBottomPadding() {
-        val extra = dp(prefs.bottomOffset.coerceIn(0, 60).toFloat()).toInt()
-        content.setPadding(0, 0, 0, navInset + extra)
+        val extra = dp(prefs.bottomOffset.coerceIn(0, 60).toFloat() * (if (isLandscape()) 0.5f else 1f)).toInt()
+        content.setPadding(sysInsets[0], 0, sysInsets[1], sysInsets[2] + extra)
     }
 
     fun onFinishInput() {
@@ -243,8 +246,19 @@ class KeyboardRootView(private val ime: MrosKeyboardService) : FrameLayout(ime),
     private fun applySizes() {
         val scale = prefs.heightPercent.coerceIn(70, 140) / 100f
         val rows = if (prefs.numberRow) 5 else 4
-        val rowH = dp(54f) * scale
-        toolbarH = dp(46f).toInt()
+        val land = isLandscape()
+        // yonboshda ekran past — tugmalar pastroq bo'ladi (Gboard kabi), aks holda klaviatura ekranni to'sib qo'yardi
+        val rowH = dp(if (land) 40f else 54f) * scale
+        val newToolbarH = dp(if (land) 40f else 46f).toInt()
+        if (newToolbarH != toolbarH) {
+            toolbarH = newToolbarH
+            val lp = toolbar.layoutParams
+            if (lp != null) {
+                lp.height = toolbarH
+                toolbar.layoutParams = lp
+            }
+            keysH = 0
+        }
         val newKeysH = (rowH * rows + dp(8f)).toInt()
         keyboard.showPreviews = prefs.keyPopup
         applyBottomPadding()

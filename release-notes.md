@@ -1,3 +1,4 @@
+• Yonbosh (landshaft) holat tuzatildi: klaviatura pastroq, yon tomondagi panel va kamera ostiga tushmaydi
 • Yangi versiya raqamlash: 10.0.x
 • Tuzatildi: klaviatura ochilganda pastki qismi kesilib qotib qolishi
 • Tezroq ishlash: orqa fon endi keraksiz qayta chizilmaydi

@@ -401,7 +401,8 @@ class KeyboardView(context: Context, private val host: Host) : View(context) {
 
     private fun drawBubble(c: Canvas, k: Key, g: GlassTheme) {
         val r = k.rect
-        val ext = min(r.width() * 0.3f, dp(11f))
+        // keng tugmalarda (yonbosh holat) balon haddan tashqari kengayib ketmasin
+        val ext = ((dp(60f) - r.width()) / 2f).coerceIn(0f, min(r.width() * 0.3f, dp(11f)))
         val bw = r.width() + 2 * ext
         val bh = r.height() * 1.08f
         val limitTop = -host.overlaySpaceAbove() + dp(2f)
