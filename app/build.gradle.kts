@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -5,7 +7,7 @@ plugins {
 
 val runNumber = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
 // Versiya: version.properties dagi major.minor + build raqami (10.0.1, 10.0.2, ...)
-val versionProps = java.util.Properties().apply {
+val versionProps = Properties().apply {
     val f = rootProject.file("version.properties")
     if (f.exists()) f.inputStream().use { load(it) }
 }
