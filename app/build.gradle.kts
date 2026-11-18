@@ -4,6 +4,13 @@ plugins {
 }
 
 val runNumber = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
+// Versiya: version.properties dagi major.minor + build raqami (10.0.1, 10.0.2, ...)
+val versionProps = java.util.Properties().apply {
+    val f = rootProject.file("version.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+val versionMajor = versionProps.getProperty("major", "10").trim().toInt()
+val versionMinor = versionProps.getProperty("minor", "0").trim().toInt()
 
 android {
     namespace = "uz.mros.keyboard"
@@ -13,8 +20,9 @@ android {
         applicationId = "uz.mros.keyboard"
         minSdk = 26
         targetSdk = 35
-        versionCode = runNumber
-        versionName = "1.0.$runNumber"
+        // versionCode doim o'sib boradi (yangi repo ochilsa ham eski versiya ustiga o'rnatiladi)
+        versionCode = versionMajor * 1_000_000 + versionMinor * 10_000 + runNumber
+        versionName = "$versionMajor.$versionMinor.$runNumber"
         // Yangilanishlar olinadigan ochiq GitHub repo (owner/repo) — workflow'dan keladi
         buildConfigField("String", "UPDATE_REPO", "\"${System.getenv("UPDATE_REPO") ?: ""}\"")
         // Yopiq repo uchun: faqat o'qish huquqli token (GitHub Secrets → UPDATE_TOKEN). Ochiq repo bo'lsa — bo'sh.

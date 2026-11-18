@@ -58,8 +58,15 @@ object Updater {
         "?"
     }
 
-    fun versionFromTag(tag: String): Long =
-        Regex("(\\d+)\\D*$").find(tag)?.groupValues?.get(1)?.toLongOrNull() ?: 0L
+    /** "v10.0.5" -> 10*1_000_000 + 0*10_000 + 5 (build.gradle.kts dagi versionCode bilan bir xil formula) */
+    fun versionFromTag(tag: String): Long {
+        val m = Regex("(\\d+)\\.(\\d+)\\.(\\d+)").find(tag)
+        if (m != null) {
+            val (a, b, c) = m.destructured
+            return a.toLong() * 1_000_000 + b.toLong() * 10_000 + c.toLong()
+        }
+        return Regex("(\\d+)\\D*$").find(tag)?.groupValues?.get(1)?.toLongOrNull() ?: 0L
+    }
 
     private fun open(url: String, accept: String, auth: Boolean): HttpURLConnection {
         val c = URL(url).openConnection() as HttpURLConnection
